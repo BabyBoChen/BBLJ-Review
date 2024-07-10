@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>BBLJ五星評論</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        .rating {
+            float:left;
+        }
+
+        /* :not(:checked) is a filter, so that browsers that don’t support :checked don’t 
+        follow these rules. Every browser that supports :checked also supports :not(), so
+        it doesn’t make the test unnecessarily selective */
+        .rating:not(:checked) > input {
+            position:absolute;
+            top:-9999px;
+            clip:rect(0,0,0,0);
+        }
+
+        .rating:not(:checked) > label {
+            float:right;
+            width:1em;
+            padding:0 .1em;
+            overflow:hidden;
+            white-space:nowrap;
+            cursor:pointer;
+            font-size:200%;
+            line-height:1.2;
+            color:#ddd;
+            text-shadow:1px 1px #bbb, 2px 2px #666, .1em .1em .2em rgba(0,0,0,.5);
+        }
+
+        .rating:not(:checked) > label:before {
+            content: '★ ';
+        }
+
+        .rating > input:checked ~ label {
+            color: #f70;
+            text-shadow:1px 1px #c60, 2px 2px #940, .1em .1em .2em rgba(0,0,0,.5);
+        }
+
+        .rating:not(:checked) > label:hover,
+        .rating:not(:checked) > label:hover ~ label {
+            color: gold;
+            text-shadow:1px 1px goldenrod, 2px 2px #B57340, .1em .1em .2em rgba(0,0,0,.5);
+        }
+
+        .rating > input:checked + label:hover,
+        .rating > input:checked + label:hover ~ label,
+        .rating > input:checked ~ label:hover,
+        .rating > input:checked ~ label:hover ~ label,
+        .rating > label:hover ~ input:checked ~ label {
+            color: #ea0;
+            text-shadow:1px 1px goldenrod, 2px 2px #B57340, .1em .1em .2em rgba(0,0,0,.5);
+        }
+
+        .rating > label:active {
+            position:relative;
+            top:2px;
+            left:2px;
+        }
+
+        /* end of Lea's code */
+
+        /*
+        * Clearfix from html5 boilerplate
+        */
+
+        .clearfix:before,
+        .clearfix:after {
+            content: " "; /* 1 */
+            display: table; /* 2 */
+        }
+
+        .clearfix:after {
+            clear: both;
+        }
+
+        /*
+        * For IE 6/7 only
+        * Include this rule to trigger hasLayout and contain floats.
+        */
+
+        .clearfix {
+            *zoom: 1;
+        }
+
+        /* my stuff */
+        #status, button {
+            margin: 20px 0;
+        }
+
+        .comment {
+            width: 18em;
+            height: 5em;
+            resize:none;
+        }
+
+        #divErrMsg {
+            color: red;
+        }
+
+    </style>
+</head>
+
+<body>
+    <form id="frmStar">
+        <fieldset class="rating">
+            <legend>五星級評論:</legend>
+            <input type="radio" id="star5" name="star" value="5" /><label for="star5" title="Rocks!">5 stars</label>
+            <input type="radio" id="star4" name="star" value="4" /><label for="star4" title="Pretty good">4
+                stars</label>
+            <input type="radio" id="star3" name="star" value="3" /><label for="star3" title="Meh">3 stars</label>
+            <input type="radio" id="star2" name="star" value="2" /><label for="star2" title="Kinda bad">2
+                stars</label>
+            <input type="radio" id="star1" name="star" value="1" /><label for="star1" title="Sucks big time">1
+                star</label>
+        </fieldset>
+        <div class="clearfix"></div>
+        <textarea class="comment" name="comment" placeholder="請寫下您的評語"></textarea>
+        <br/>
+        <input type="hidden" id="id_token" name="id_token" value="unauthorized"/>
+        <input type="hidden" id="user_id" name="user_id" value="unknown"/>
+        <input type="hidden" id="display_name" name="display_name" value="unknown"/>
+        <br/>
+        <button type="button" id="btnGiveStar" class="submit clearfix" onclick="giveStar()">遞交</button>
+    </form>
+    
+    <div id="divErrMsg"></div>
+
+    <script src="/sdk.js"></script>
+
+    <script>
+        const frmStar = document.querySelector("#frmStar");
+        const divErrMsg = document.querySelector("#divErrMsg");
+        const id_token = document.querySelector("#id_token");
+        const user_id = document.querySelector("#user_id");
+        const display_name = document.querySelector("#display_name");
+        /** @type {HTMLButtonElement} */
+        const btnGiveStar = document.querySelector("#btnGiveStar");
+        let isInit = false;
+        let isAuthorized = false;
+
+        window.addEventListener("DOMContentLoaded", async function(){
+            await liff.init({
+                liffId: "2005810589-ArrX382q", // Use own liffId
+            }).then(function(){
+                isInit = true;
+            });
+            if(isInit && liff.isInClient()){
+                let profile = await liff.getProfile();
+                user_id.value = profile.userId;
+                display_name.value = profile.displayName;
+                let token = liff.getIDToken();
+                id_token.value = token.toString();
+            } else {
+                // frmStar.remove();
+                btnGiveStar.disabled = true;
+                divErrMsg.innerHTML = "請使用LINE App開啟此頁面";
+            }
+        });
+        async function giveStar(){
+            let errMsg = "";
+            let isSuccessful = await fetch("/api/giveStar", {
+                method: "POST",
+                body: new FormData(frmStar)
+            }).then(async function(resp){
+                if(resp.status == 200){
+                    return true;
+                } else {
+                    errMsg = await resp.text();
+                    return false;
+                }
+            }).catch(function(err){
+                divErrMsg.innerHTML = err;
+            });
+
+            if(isSuccessful){
+                liff.closeWindow();
+                window.close();
+            } else {
+                divErrMsg.innerHTML = "error!\n";
+                divErrMsg.innerHTML += errMsg;
+            }
+        }
+    </script>
+</body>
+
+</html>
