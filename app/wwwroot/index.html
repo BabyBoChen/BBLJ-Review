@@ -145,8 +145,11 @@
         let isAuthorized = false;
 
         window.addEventListener("DOMContentLoaded", async function(){
+            let liffId = await fetch("/api/getLiffId").then(async function(resp){
+                return await resp.text();
+            });
             await liff.init({
-                liffId: "2005810589-ArrX382q", // Use own liffId
+                liffId: liffId, // Use own liffId
             }).then(function(){
                 isInit = true;
             });

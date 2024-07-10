@@ -18,6 +18,8 @@ const apiServer = {
                 resp = helloDeno(req);
             } else if(segments[2] == "giveStar" && req.method.toLowerCase() == "post"){
                 resp = giveStar(req);
+            } else if(segments[2] == "getLiffId" && req.method.toLowerCase() == "get"){
+                resp = getLiffId(req);
             }
         }
         return resp;
@@ -198,5 +200,16 @@ async function giveStar(req) {
 
     return resp;
 };
+
+/** @param req {Request} @returns {Promise<Response>} */
+async function getLiffId(req){
+    let liffId = Deno.env.get("LIFF_ID");
+    return new Response(liffId, {
+        status: 200,
+        headers: {
+            "content-type": "text/html",
+        }
+    });
+}
 
 export default apiServer;

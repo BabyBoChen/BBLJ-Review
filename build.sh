@@ -1,1 +1,1 @@
-sudo docker build -t bblj-review .
+sudo docker build -t registry.gitlab.com/bblj/bblj-review .
