@@ -7,6 +7,14 @@
     <title>BBLJ五星評論</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        body {
+            overflow: auto;
+        }
+
+        #pageWrapper{
+            min-width: 20em;
+        }
+
         .rating {
             float:left;
         }
@@ -103,35 +111,86 @@
             color: red;
         }
 
+        #chartWrapper {
+            width: 100%;
+            max-width: 20em;
+            height: 20em;
+        }
+
+        #tableWrapper {
+            width: 100%;
+            text-align: center;
+            overflow: auto;
+        }
+
+        #tbComment, #tbComment th, #tbComment td{
+            text-align: left;
+            border: 1px solid black;
+            border-collapse: collapse;
+        }
+
+        #tbComment th {
+            text-align: center;
+        }
+
+        #tbComment {
+            width: 50em;
+        }
+
     </style>
 </head>
 
 <body>
-    <form id="frmStar">
-        <fieldset class="rating">
-            <legend>五星級評論:</legend>
-            <input type="radio" id="star5" name="star" value="5" /><label for="star5" title="Rocks!">5 stars</label>
-            <input type="radio" id="star4" name="star" value="4" /><label for="star4" title="Pretty good">4
-                stars</label>
-            <input type="radio" id="star3" name="star" value="3" /><label for="star3" title="Meh">3 stars</label>
-            <input type="radio" id="star2" name="star" value="2" /><label for="star2" title="Kinda bad">2
-                stars</label>
-            <input type="radio" id="star1" name="star" value="1" /><label for="star1" title="Sucks big time">1
-                star</label>
-        </fieldset>
-        <div class="clearfix"></div>
-        <textarea class="comment" name="comment" placeholder="請寫下您的評語"></textarea>
-        <br/>
-        <input type="hidden" id="id_token" name="id_token" value="unauthorized"/>
-        <input type="hidden" id="user_id" name="user_id" value="unknown"/>
-        <input type="hidden" id="display_name" name="display_name" value="unknown"/>
-        <br/>
-        <button type="button" id="btnGiveStar" class="submit clearfix" onclick="giveStar()">遞交</button>
-    </form>
+    <div id="pageWrapper">
+        <form id="frmStar">
+            <fieldset class="rating">
+                <legend>五星級評論:</legend>
+                <input type="radio" id="star5" name="star" value="5" /><label for="star5" title="Rocks!">5 stars</label>
+                <input type="radio" id="star4" name="star" value="4" /><label for="star4" title="Pretty good">4
+                    stars</label>
+                <input type="radio" id="star3" name="star" value="3" /><label for="star3" title="Meh">3 stars</label>
+                <input type="radio" id="star2" name="star" value="2" /><label for="star2" title="Kinda bad">2
+                    stars</label>
+                <input type="radio" id="star1" name="star" value="1" /><label for="star1" title="Sucks big time">1
+                    star</label>
+            </fieldset>
+            <div class="clearfix"></div>
+            <textarea class="comment" name="comment" placeholder="請寫下您的評語"></textarea>
+            <br/>
+            <input type="hidden" id="id_token" name="id_token" value="unauthorized"/>
+            <input type="hidden" id="user_id" name="user_id" value="unknown"/>
+            <input type="hidden" id="display_name" name="display_name" value="unknown"/>
+            <br/>
+            <button type="button" id="btnGiveStar" class="submit clearfix" onclick="giveStar()">遞交</button>
+        </form>
+        
+        <div id="divErrMsg"></div>
     
-    <div id="divErrMsg"></div>
+        <div id="chartWrapper">
+            <canvas id="myChart"></canvas>
+        </div>
+
+        <div id="tableWrapper">
+            <table id="tbComment">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>名稱</th>
+                        <th>星星</th>
+                        <th>評論</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                </tbody>
+            </table>
+            <label><input id="txtPage" style="width: 3em;" value="1"/> / <span id="spanTotalPage"></span> <button id="btnGo" onclick="goPage()">GO</button></label>
+        </div>
+
+    </div>
 
     <script src="/sdk.js"></script>
+    <script src="/chart.js"></script>
 
     <script>
         const frmStar = document.querySelector("#frmStar");
@@ -141,8 +200,14 @@
         const display_name = document.querySelector("#display_name");
         /** @type {HTMLButtonElement} */
         const btnGiveStar = document.querySelector("#btnGiveStar");
+        const canvMyChart = document.getElementById("myChart");
         let isInit = false;
         let isAuthorized = false;
+        let myChart;
+        const tbody = document.querySelector("#tbComment tbody");
+        const txtPage = document.getElementById("txtPage");
+        const spanTotalPage = document.getElementById("spanTotalPage");
+        const btnGo = document.getElementById("btnGo");
 
         window.addEventListener("DOMContentLoaded", async function(){
             let liffId = await fetch("/api/getLiffId").then(async function(resp){
@@ -165,6 +230,7 @@
                 divErrMsg.innerHTML = "請使用LINE App開啟此頁面";
             }
         });
+        
         async function giveStar(){
             let errMsg = "";
             let isSuccessful = await fetch("/api/giveStar", {
@@ -189,6 +255,94 @@
                 divErrMsg.innerHTML += errMsg;
             }
         }
+    
+        window.addEventListener("DOMContentLoaded", async function(){
+            /** @type {Array} */
+            let stats = await getStats();
+            //console.log(stats);
+            let starLabels = [];
+            let starCounts = [];
+            stats.forEach(function(stat){ 
+                starLabels.push(stat.star.toString()+"星");
+                starCounts.push(stat.total);
+            });
+            myChart = new Chart(canvMyChart, {
+                type: "bar",
+                data: {
+                    labels: starLabels,
+                    datasets: [{
+                        label: "五星評論統計",
+                        data: starCounts,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.2)',
+                            'rgba(255, 159, 64, 0.2)',
+                            'rgba(255, 205, 86, 0.2)',
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(54, 162, 235, 0.2)',
+                        ],
+                        borderColor: [
+                            'rgb(255, 99, 132)',
+                            'rgb(255, 159, 64)',
+                            'rgb(255, 205, 86)',
+                            'rgb(75, 192, 192)',
+                            'rgb(54, 162, 235)',
+                        ],
+                        borderWidth: 1
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                }
+            });
+
+            await goPage();
+        });
+
+        async function getStats(){
+            let stats = await fetch("/api/getStats").then(async function(resp){
+                return await resp.json();
+            });
+            return stats;
+        }
+        
+        async function getComments(page){
+            let stats = await fetch("/api/getComments?page="+page).then(async function(resp){
+                return await resp.json();
+            });
+            return stats;
+        }
+
+        async function goPage(){
+            let page = txtPage.value;
+            let comments = await getComments(page);
+            tbody.innerHTML = "";
+            for(let i = 0; i < comments.comments.length; i++){
+                let timeStamp = new Date(comments.comments[i].timestamp);
+                let displayName = comments.comments[i].display_name;
+                if(displayName.length > 15){
+                    displayName = displayName.substring(0,15) + "...";
+                }
+                let comment = comments.comments[i].comment;
+                if(comment.length > 30){
+                    comment = comment.substring(0,29) + "...";
+                }
+                let row = `
+<tr>
+    <td>${timeStamp.getUTCFullYear()}-${timeStamp.getUTCMonth()+1}-${timeStamp.getUTCDate()}</td>
+    <td>${displayName}</td>
+    <td>${comments.comments[i].star}</td>
+    <td>${comment}</td>
+</tr>`;
+                tbody.innerHTML += row;
+            }
+            
+            txtPage.value = comments.page;
+            spanTotalPage.innerHTML = comments.totalPage[0].totalpage;
+        }
+
+        window.addEventListener("resize", function(){
+            myChart?.resize();
+        });
     </script>
 </body>
 

@@ -20,6 +20,10 @@ const apiServer = {
                 resp = giveStar(req);
             } else if(segments[2] == "getLiffId" && req.method.toLowerCase() == "get"){
                 resp = getLiffId(req);
+            } else if(segments[2] == "getStats" && req.method.toLowerCase() == "get"){
+                resp = getStats(req);
+            } else if(segments[2] == "getComments" && req.method.toLowerCase() == "get") {
+                resp = getComments(req);
             }
         }
         return resp;
@@ -124,6 +128,7 @@ async function giveStar(req) {
                 `INSERT INTO star(user_id,display_name,star,comment) VALUES($1,$2,$3,$4)`, 
                 [userId,displayName,star,comment]
             );
+            client.end();
         } catch (ex){
             resp = new Response(ex, {
                 status: 400,
@@ -210,6 +215,118 @@ async function getLiffId(req){
             "content-type": "text/html",
         }
     });
+}
+
+/** @param req {Request} @returns {Promise<Response>} */
+async function getStats(req){
+    /** @type {Promise<Response>} */
+    let resp = new Response("unknown error", {
+        status: 400,
+    });
+
+    try {
+        let pgUser = Deno.env.get("PG_USER");
+        let pgDbName = Deno.env.get("PG_DB_NAME");
+        let pgHost = Deno.env.get("PG_HOST");
+        let pgPassword = Deno.env.get("PG_PASSWORD");
+        let pgPort = Deno.env.get("PG_PORT");
+        
+        let client = new Client({
+            user: pgUser,
+            database: pgDbName,
+            hostname: pgHost,
+            password: pgPassword,
+            port: parseInt(pgPort),
+        });
+        await client.connect();
+        const sql = `
+drop table if exists star_count;
+CREATE TEMP TABLE star_count(
+    star integer PRIMARY KEY
+);
+INSERT INTO star_count VALUES(1),(2),(3),(4),(5);
+SELECT A.star, COUNT(B.star)::integer AS total
+FROM star_count AS A
+LEFT JOIN public.star AS B ON A.star=B.star
+GROUP BY A.star
+ORDER BY A.star;`;
+        let dt = await client.queryObject(sql);
+        resp = new Response(JSON.stringify(dt.rows), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        client.end();
+    } catch (ex){
+        resp = new Response(ex, {
+            status: 400,
+        });
+    }
+
+    return resp;
+}
+
+/** @param req {Request} @returns {Promise<Response>} */
+async function getComments(req){
+    /** @type {Promise<Response>} */
+    let resp = new Response("unknown error", {
+        status: 400,
+    });
+
+    try {
+        let pgUser = Deno.env.get("PG_USER");
+        let pgDbName = Deno.env.get("PG_DB_NAME");
+        let pgHost = Deno.env.get("PG_HOST");
+        let pgPassword = Deno.env.get("PG_PASSWORD");
+        let pgPort = Deno.env.get("PG_PORT");
+        
+        let client = new Client({
+            user: pgUser,
+            database: pgDbName,
+            hostname: pgHost,
+            password: pgPassword,
+            port: parseInt(pgPort),
+        });
+        await client.connect();
+        const sql_page = `
+SELECT CEILING( COUNT(*) /10.0)::integer AS TotalPage
+FROM public.star;`;
+        let dt = await client.queryObject(sql_page);
+        let totalPage = dt.rows[0].totalpage;
+        const url = new URL(req.url);
+        let page = Number(url.searchParams.get("page"));
+        if(page == NaN){
+            page = 1;
+        } else if(page <= 0){
+            page = 1;
+        } else if(page > totalPage){
+            page = totalPage;
+        } 
+        const sql = `
+SELECT * FROM public.star
+ORDER BY star_id DESC
+LIMIT 10
+OFFSET 10*${page-1}`;
+        let dt2 = await client.queryObject(sql);
+        let ds = {
+            totalPage: dt.rows,
+            comments: dt2.rows,
+            page,
+        };
+        resp = new Response(JSON.stringify(ds), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+    } catch (ex){
+        resp = new Response(ex, {
+            status: 400,
+        });
+    }
+
+    return resp;
 }
 
 export default apiServer;
