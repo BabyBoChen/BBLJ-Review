@@ -259,7 +259,6 @@
         window.addEventListener("DOMContentLoaded", async function(){
             /** @type {Array} */
             let stats = await getStats();
-            //console.log(stats);
             let starLabels = [];
             let starCounts = [];
             stats.forEach(function(stat){ 
@@ -337,7 +336,7 @@
             }
             
             txtPage.value = comments.page;
-            spanTotalPage.innerHTML = comments.totalPage[0].totalpage;
+            spanTotalPage.innerHTML = comments.totalPage;
         }
 
         window.addEventListener("resize", function(){

@@ -1,1 +1,1 @@
-deno run --allow-net --allow-read --allow-env main.js
+deno run --allow-all --watch main.js

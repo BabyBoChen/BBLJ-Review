@@ -1,4 +1,4 @@
-import { Client } from "https://deno.land/x/postgres/mod.ts";
+import tursoDbService from "../services/tursoDbService.js";
 
 const apiServer = {
     /** @param req {Request} @returns {Promise<Response>} */
@@ -99,36 +99,28 @@ async function giveStar(req) {
         }
     }
 
-    let client;
-    try {
-        let pgUser = Deno.env.get("PG_USER");
-        let pgDbName = Deno.env.get("PG_DB_NAME");
-        let pgHost = Deno.env.get("PG_HOST");
-        let pgPassword = Deno.env.get("PG_PASSWORD");
-        let pgPort = Deno.env.get("PG_PORT");
-        
-        client = new Client({
-            user: pgUser,
-            database: pgDbName,
-            hostname: pgHost,
-            password: pgPassword,
-            port: parseInt(pgPort),
-        });
-        await client.connect();
-    } catch (ex){
-        resp = new Response(ex, {
-            status: 400,
-        });
-        toContinue = false;
-    }
-
     if(toContinue){
         try {
-            await client.queryObject(
-                `INSERT INTO star(user_id,display_name,star,comment) VALUES($1,$2,$3,$4)`, 
-                [userId,displayName,star,comment]
-            );
-            client.end();
+            let sql = "INSERT INTO star(user_id,display_name,star,comment) VALUES(?,?,?,?)";
+            let args = [
+                {
+                    type:"text",
+                    value:userId,
+                },
+                {
+                    type:"text",
+                    value:displayName,
+                },
+                {
+                    type:"integer",
+                    value:`${star}`,
+                },
+                {
+                    type:"text",
+                    value:comment,
+                },
+            ];
+            await tursoDbService.queryAsync(sql, args);
         } catch (ex){
             resp = new Response(ex, {
                 status: 400,
@@ -225,39 +217,19 @@ async function getStats(req){
     });
 
     try {
-        let pgUser = Deno.env.get("PG_USER");
-        let pgDbName = Deno.env.get("PG_DB_NAME");
-        let pgHost = Deno.env.get("PG_HOST");
-        let pgPassword = Deno.env.get("PG_PASSWORD");
-        let pgPort = Deno.env.get("PG_PORT");
-        
-        let client = new Client({
-            user: pgUser,
-            database: pgDbName,
-            hostname: pgHost,
-            password: pgPassword,
-            port: parseInt(pgPort),
-        });
-        await client.connect();
         const sql = `
-drop table if exists star_count;
-CREATE TEMP TABLE star_count(
-    star integer PRIMARY KEY
-);
-INSERT INTO star_count VALUES(1),(2),(3),(4),(5);
-SELECT A.star, COUNT(B.star)::integer AS total
-FROM star_count AS A
-LEFT JOIN public.star AS B ON A.star=B.star
+SELECT A.star, COUNT(B.star) AS total
+FROM five_star AS A
+LEFT JOIN star AS B ON A.star=B.star
 GROUP BY A.star
 ORDER BY A.star;`;
-        let dt = await client.queryObject(sql);
-        resp = new Response(JSON.stringify(dt.rows), {
+        let ds = await tursoDbService.queryAsync(sql);
+        resp = new Response(JSON.stringify(ds), {
             status: 200,
             headers: {
                 "Content-Type": "application/json",
             },
         });
-        client.end();
     } catch (ex){
         resp = new Response(ex, {
             status: 400,
@@ -275,25 +247,11 @@ async function getComments(req){
     });
 
     try {
-        let pgUser = Deno.env.get("PG_USER");
-        let pgDbName = Deno.env.get("PG_DB_NAME");
-        let pgHost = Deno.env.get("PG_HOST");
-        let pgPassword = Deno.env.get("PG_PASSWORD");
-        let pgPort = Deno.env.get("PG_PORT");
-        
-        let client = new Client({
-            user: pgUser,
-            database: pgDbName,
-            hostname: pgHost,
-            password: pgPassword,
-            port: parseInt(pgPort),
-        });
-        await client.connect();
         const sql_page = `
-SELECT CEILING( COUNT(*) /10.0)::integer AS TotalPage
-FROM public.star;`;
-        let dt = await client.queryObject(sql_page);
-        let totalPage = dt.rows[0].totalpage;
+SELECT CEILING( COUNT(*) /10.0) AS TotalPage
+FROM star;`;
+        let dt = await tursoDbService.queryAsync(sql_page);
+        let totalPage = dt[0].TotalPage;
         const url = new URL(req.url);
         let page = Number(url.searchParams.get("page"));
         if(page == NaN){
@@ -304,14 +262,13 @@ FROM public.star;`;
             page = totalPage;
         } 
         const sql = `
-SELECT * FROM public.star
+SELECT * FROM star
 ORDER BY star_id DESC
-LIMIT 10
-OFFSET 10*${page-1}`;
-        let dt2 = await client.queryObject(sql);
+LIMIT 10 OFFSET 10*${page-1}`;
+        let dt2 = await tursoDbService.queryAsync(sql);
         let ds = {
-            totalPage: dt.rows,
-            comments: dt2.rows,
+            totalPage: totalPage,
+            comments: dt2,
             page,
         };
         resp = new Response(JSON.stringify(ds), {
